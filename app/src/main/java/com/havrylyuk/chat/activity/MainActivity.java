@@ -10,7 +10,6 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -27,7 +26,7 @@ import com.havrylyuk.chat.R;
 import com.havrylyuk.chat.adapter.SimpleRecyclerAdapter;
 import com.havrylyuk.chat.event.SendEvent;
 import com.havrylyuk.chat.model.Message;
-import com.havrylyuk.chat.event.CallbakEvent;
+import com.havrylyuk.chat.event.GetMessagesListEvent;
 import com.havrylyuk.chat.event.ServiceEvent;
 import com.havrylyuk.chat.service.ChatService;
 import com.havrylyuk.chat.service.ChatService.LocalBinder;
@@ -91,8 +90,12 @@ public class MainActivity extends AppCompatActivity {
         }
         messageInput.setText("");
         recyclerView.scrollToPosition(adapter.getItemCount() - 1);
+        sendSocketMessage(USER_NAME, message);
+    }
+
+    private void sendSocketMessage(String userName, String message) {
         if (chatService.getSocket() != null) {
-            chatService.getSocket().emit("identify", USER_NAME);
+            chatService.getSocket().emit("identify", userName);
             chatService.getSocket().emit("message", message);
         }
     }
@@ -149,9 +152,11 @@ public class MainActivity extends AppCompatActivity {
                 EventBus.getDefault().post(new ServiceEvent(ChatService.STOP_SERVICE));
                 return true;
             case R.id.action_start_bot:
+                Toast.makeText(MainActivity.this, "Chat Bot is started.", Toast.LENGTH_SHORT).show();
                 EventBus.getDefault().post(new ServiceEvent(ChatService.START_BOT));
                 return true;
             case R.id.action_stop_bot:
+                Toast.makeText(MainActivity.this, "Chat Bot is stopped.", Toast.LENGTH_SHORT).show();
                 EventBus.getDefault().post(new ServiceEvent(ChatService.STOP_BOT));
                 return true;
             default:
@@ -161,7 +166,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onEvent(CallbakEvent event) {
+    public void onEvent(GetMessagesListEvent event) {
         adapter.addAll(event.getMessages());
         recyclerView.scrollToPosition(adapter.getItemCount() - 1);
     }
@@ -174,16 +179,13 @@ public class MainActivity extends AppCompatActivity {
 
     @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
     public void onEvent(SendEvent event) {
-        if (chatService.getSocket() != null) {
-            chatService.getSocket().emit("identify", event.getMessage().getUserName());
-            chatService.getSocket().emit("message", event.getMessage().getMessage());
-        }
+        sendSocketMessage(event.getMessage().getUserName(),
+                event.getMessage().getMessage());
     }
 
     private ServiceConnection sConn = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            Log.d(LOG_TAG, "onServiceConnected()");
             LocalBinder binder = (LocalBinder) service;
             chatService = binder.getService();
             isBound = true;
@@ -191,7 +193,6 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            Log.d(LOG_TAG, "onServiceDisconnected()");
             isBound = false;
         }
     };

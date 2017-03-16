@@ -16,7 +16,6 @@ public class BootBroadcastReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent.getAction().equalsIgnoreCase(Intent.ACTION_BOOT_COMPLETED)) {
-         Log.d("ChatService", "BootBroadcastReceiver onReceive");
          Intent serviceIntent = new Intent(context, ChatService.class);
          context.startService(serviceIntent);
          }

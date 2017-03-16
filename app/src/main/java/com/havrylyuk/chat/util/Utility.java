@@ -19,6 +19,14 @@ import com.havrylyuk.chat.R;
 
 public class Utility {
 
+
+    public final static String[] words = new String[]{
+            "How are you","Hello", "Are you serious?", "Why is it so quiet?",
+            "What happens if I continue to spam and the list of messages becomes very large?",
+            "Will you load the entire list?", "How are you?", "Burn!" , "Oops ...", ":-)",
+            "For what 'roster' on the server?", "I will be banned?", "Really cool!", "I cry :-)",
+            "I knew it ...", "To be continued?", "I do not understand ..." };
+
     private static final int CHAT_NOTIFICATION_ID = 3004;
 
     public static void showNotification(Context context, final String body, final String title) {

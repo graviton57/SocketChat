@@ -11,7 +11,7 @@ import android.util.Log;
 import com.havrylyuk.chat.BuildConfig;
 import com.havrylyuk.chat.event.SendEvent;
 import com.havrylyuk.chat.model.Message;
-import com.havrylyuk.chat.event.CallbakEvent;
+import com.havrylyuk.chat.event.GetMessagesListEvent;
 import com.havrylyuk.chat.event.ServiceEvent;
 import com.havrylyuk.chat.util.Utility;
 
@@ -22,8 +22,10 @@ import org.json.JSONObject;
 
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,15 +44,12 @@ import io.socket.emitter.Emitter;
 public class ChatService extends Service {
 
     private static final String LOG_TAG = ChatService.class.getSimpleName();
-    private final static String[] worlds = new String[]{"Как дела",
-            "Привет","Вы серйозно?","Почему так тихо?",
-            "Что будет если я и дальше буду спамить и список сообщений станет очень большой?",
-            "Будете грузить весь список?","Как дела?",
-            "для чего 'roster' на сервере?","Меня забанят?","Реально круто!","Я так и знал...","To be continued..."};
+
     public static final int STOP_SERVICE = 0;
     public static final int START_SERVICE = 1;
     public static final int START_BOT = 3;
     public static final int STOP_BOT = 4;
+    private static final long BOT_TIME_WAIT = 30000 ;// 30 seconds
 
     private final IBinder binder = new LocalBinder();
     private List<Message> messages;
@@ -71,19 +70,16 @@ public class ChatService extends Service {
     public void onCreate() {
         super.onCreate();
         EventBus.getDefault().register(this);
-        Log.d(LOG_TAG,"ChatService onCreate");
         messages = new ArrayList<>();
         setupSocket();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(LOG_TAG, "ChatService onStartCommand flag=" + flags + " startId=" + startId);
         return START_STICKY_COMPATIBILITY;
     }
 
     private void setupSocket() {
-        Log.d(LOG_TAG, "ChatService setupSocket()");
         try {
             IO.Options options = new IO.Options();
             options.timeout = 10000;
@@ -102,29 +98,25 @@ public class ChatService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         isBind = true;
-        Log.d(LOG_TAG,"ChatService onBind");
-        EventBus.getDefault().post(new CallbakEvent(messages));
+        EventBus.getDefault().post(new GetMessagesListEvent(messages));
         return binder;
     }
 
     @Override
     public boolean onUnbind(Intent intent) {
         isBind = false;
-        Log.d(LOG_TAG,"ChatService onUnbind");
         return true;
     }
 
     @Override
     public void onRebind(Intent intent) {
         isBind = true;
-        Log.d(LOG_TAG,"ChatService onRebind");
         super.onRebind(intent);
-        EventBus.getDefault().post(new CallbakEvent(messages));
+        EventBus.getDefault().post(new GetMessagesListEvent(messages));
     }
 
     @Override
     public void onDestroy() {
-        Log.d(LOG_TAG,"ChatService onDestroy");
         EventBus.getDefault().unregister(this);
         closeSocket();
         stopBot();
@@ -133,7 +125,6 @@ public class ChatService extends Service {
 
     @Subscribe
     public void onEvent(ServiceEvent event) {
-        Log.d(LOG_TAG, "ChatService on ServiceEvent =" + event.getEvent());
         switch (event.getEvent()){
             case STOP_BOT:
                 stopBot();
@@ -174,8 +165,7 @@ public class ChatService extends Service {
     private Emitter.Listener onConnect = new Emitter.Listener() {
         @Override
         public void call(Object... args) {
-              Log.d(LOG_TAG,  "Socket Connected");
-              // EventBus.getDefault().post(new ServiceEvent("Connected"));
+              if (BuildConfig.DEBUG) Log.d(LOG_TAG,  "Socket Connected");
               isConnected = true;
         }
     };
@@ -184,8 +174,7 @@ public class ChatService extends Service {
     private Emitter.Listener onDisconnect = new Emitter.Listener() {
         @Override
         public void call(Object... args) {
-            Log.i(LOG_TAG, "Socket diconnected");
-            //EventBus.getDefault().post(new ServiceEvent("diconnected"));
+            if (BuildConfig.DEBUG) Log.d(LOG_TAG, "Socket diconnected");
             isConnected = false;
         }
     };
@@ -194,14 +183,13 @@ public class ChatService extends Service {
         @Override
         public void call(Object... args) {
             Log.e(LOG_TAG, "Socket Error connecting");
-           // EventBus.getDefault().post(new ServiceEvent("Error connecting"));
+            isConnected = false;
         }
     };
 
     private Emitter.Listener onNewMessage = new Emitter.Listener() {
         @Override
         public void call(final Object... args) {
-            Log.d(LOG_TAG, "Socket onNewMessage event");
             JSONObject data = (JSONObject) args[0];
             String username;
             String message;
@@ -227,7 +215,7 @@ public class ChatService extends Service {
     private void startBot() {
         stopBot();
         botTimer = new Timer();
-        botTimer.scheduleAtFixedRate(new BotTask(counter), 0, 60000*30);
+        botTimer.scheduleAtFixedRate(new BotTask(counter), 0, BOT_TIME_WAIT);
     }
 
     private void stopBot() {
@@ -248,14 +236,18 @@ public class ChatService extends Service {
 
         @Override
         public void run() {
-            Log.d(LOG_TAG,"ChatService create Chatterbot message");
-            int indexName = new Random().nextInt(messages.size());
-            String name = messages.get(indexName).getUserName();
-            int indexWorld = new Random().nextInt(worlds.length);
-            String world = worlds[indexWorld];
-            if (isBind){
-                Message message = new Message(current.addAndGet(1), "Chatterbot", name + " " + world);
-                EventBus.getDefault().postSticky(new SendEvent(message));
+            if (!messages.isEmpty()) {
+                Set<Message> uniqueNames = new HashSet<>(messages);
+                int indexName = new Random().nextInt(uniqueNames.size());
+                ArrayList<Message> uniqueList = new ArrayList<>(uniqueNames);
+                String name = uniqueList.get(indexName).getUserName();
+                int indexWorld = new Random().nextInt(Utility.words.length);
+                String world = Utility.words[indexWorld];
+                Message botMessage = new Message(current.addAndGet(1), "Chatterbot", name + " " + world);
+                if (isBind){
+                    if (BuildConfig.DEBUG) Log.d(LOG_TAG,"ChatService send message: Chatterbot "+name + " " + world);
+                    EventBus.getDefault().postSticky(new SendEvent(botMessage));
+                }
             }
         }
     }

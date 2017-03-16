@@ -8,11 +8,11 @@ import java.util.List;
  * Created by Igor Havrylyuk on 15.03.2017.
  */
 
-public class CallbakEvent {
+public class GetMessagesListEvent {
 
     private List<Message> messages;
 
-    public CallbakEvent(List<Message> messages) {
+    public GetMessagesListEvent(List<Message> messages) {
         this.messages = messages;
     }
 
