@@ -1,0 +1,4 @@
+ext {
+
+     CHAT_SERVER_URL= "https://test-socket-dashika1992.c9users.io";
+}

@@ -1,0 +1,9 @@
+ext {
+    supportVersion = '25.3.0'
+    ioSocketVersion = '0.8.3'
+    constraintVersion = '1.0.2'
+    eventBusVersion = '3.0.0'
+    frescoVersion = '1.1.0'
+    junitVersion = '4.12'
+    espressoVersion = '2.2.2'
+}
